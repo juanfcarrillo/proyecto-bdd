@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { getCodTaller } from "src/utils/getCodTaller";
+import { setGlobalCodTaller } from "src/utils/setGlobalCodTaller";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -11,12 +13,17 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
+  params
 }: Readonly<{
   children: React.ReactNode;
+  params: { taller: string };
 }>) {
+  const codTaller = getCodTaller(params.taller);
+  setGlobalCodTaller(codTaller);
+
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body className={`${inter.className} h-[100vh] dark`}>{children}</body>
     </html>
   );
 }
