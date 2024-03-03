@@ -510,6 +510,24 @@ export async function upsertVehiculo(formData: FormData): Promise<void> {
 
 // Reparaciones
 
+async function getRepair(codReparacion: number, numMatricula: number): Promise<any> {
+    const connection = await getConnection();
+    const request = connection.request();
+
+    try {
+        request.input('codReparacion', sql.Int, codReparacion);
+        request.input('numMatricula', sql.Int, numMatricula);
+
+        const result = await request.execute('sp_GetRepair');
+
+        // Assuming sp_GetRepair returns a single row 
+        return result.recordset[0];
+    } catch (err) {
+        console.error('Error getting repair:', err);
+        throw err; // Re-throw for further error handling
+    }
+}
+
 export async function getAllRepairs(): Promise<any[]> {
     const connection = await getConnection();
     const request = connection.request();
@@ -546,21 +564,32 @@ async function insertRepair(repairData: Reparacion, codTaller: number): Promise<
     const request = connection.request();
 
     // Add input parameters (adjust types as necessary)
-    request.input('codTaller', sql.Int, codTaller);
+    request.input('codTaller', sql.Int, tallerConfig.codTaller = codTaller);
     request.input('codReparacion', sql.Int, repairData.codReparacion);
     request.input('numMatricula', sql.Int, repairData.numMatricula);
     request.input('fecha', sql.Date, repairData.fecha);
     request.input('tipo', sql.VarChar(50), repairData.tipo);
-
-    // Execute the stored procedure
-    await request.execute('sp_InsertRepair');
+    try {
+        await request.execute('sp_InsertRepair');
+    } catch (err) {
+        console.error("Error executing stored procedure:", err);
+        throw err;
+    }
 }
 
 async function updateRepair(repairData: Reparacion, codTaller: number): Promise<void> {
     const connection = await getConnection();
     const request = connection.request();
 
-    request.input('codTaller', sql.Int, codTaller);
+    const vehicle = await getVehiculoId(repairData.numMatricula.toString());
+
+    if (!vehicle) {
+        throw new Error('Vehicle not found');
+    }
+
+    const codTallerVe = vehicle.codTaller;
+
+    request.input('codTaller', sql.Int, codTallerVe);
     request.input('codReparacion', sql.Int, repairData.codReparacion);
     request.input('numMatricula', sql.Int, repairData.numMatricula);
     request.input('fecha', sql.Date, repairData.fecha);
@@ -592,12 +621,14 @@ export async function upsertRepair(formData: FormData): Promise<void> {
         throw new Error('Invalid repair data');
     }
 
-    const existingRepair = await getRepairsByNumMatricula(numMatricula);
+    const existingRepair = await getRepair(
+        codReparacion,
+        numMatricula
+    );
 
     const repairData = { codReparacion, numMatricula, fecha, tipo };
 
-    if (existingRepair.length > 0) {
-        console.log("Updating repair:", existingRepair);
+    if (existingRepair) {
         await updateRepair({
             ...existingRepair,
             ...repairData
@@ -783,5 +814,129 @@ async function deleteClienteInf(nombre: string, apellido: string): Promise<void>
     } catch (err) {
         console.error('Error deleting cliente:', err);
         throw err; // Re-throw error for further handling if needed
+    }
+}
+
+// Telefono empleado
+
+async function createTelefonoEmpleado(codEmpleado: number, telefono: number, codTaller: number): Promise<void> {
+    const connection = await getConnection();
+    const request = connection.request();
+
+    try {
+        request.input('p_codEmpleado', sql.Int, codEmpleado);
+        request.input('p_telefono', sql.Int, telefono);
+        request.input('p_codTaller', sql.Int, codTaller);
+
+        // Execute the stored procedure
+        await request.execute('CreateTelefonoEmpleado');
+
+        console.log('Phone number created successfully.');
+    } catch (err) {
+        console.error('Error creating phone number:', err);
+        // Re-throw for further error handling if needed
+        throw err;
+    }
+}
+
+async function readTelefonoEmpleado(codEmpleado: number, telefono: number): Promise<any> {
+    const connection = await getConnection();
+    const request = connection.request();
+
+    try {
+        request.input('p_codEmpleado', sql.Int, codEmpleado);
+        request.input('p_telefono', sql.Int, telefono);
+
+        // Execute the stored procedure
+        const result = await request.execute('ReadTelefonoEmpleado');
+
+        // Retrieve the output parameter valu
+
+        return result.recordset[0]
+    } catch (err) {
+        console.error('Error reading phone number:', err);
+        // Re-throw for further error handling if needed
+        throw err;
+    }
+}
+
+export async function readTelefonoEmpleadoByCodEmpleado(codEmpleado: number): Promise<any[]> {
+    const connection = await getConnection();
+    const request = connection.request();
+
+    try {
+        request.input('codEmpleado', sql.Int, codEmpleado);
+
+        // Execute the stored procedure
+        const result = await request.execute('sq_ReadTelefonoEmpleadoByCodEmpleado');
+
+        // Assuming VW_TELEFONO_EMPLEADO returns multiple columns
+        return result.recordset;
+    } catch (err) {
+        console.error('Error reading phone numbers:', err);
+        throw err; // Re-throw for further error handling
+    }
+}
+
+async function updateTelefonoEmpleado(
+    codEmpleado: number,
+    telefono: number,
+    prevTelefono: number,
+    codTaller: number
+): Promise<void> {
+    const connection = await getConnection();
+    const request = connection.request();
+
+    try {
+        request.input('p_codEmpleado', sql.Int, codEmpleado);
+        request.input('p_telefono', sql.Int, telefono);
+        request.input('prevTelefono', sql.Int, prevTelefono);  // Add prevTelefono input
+        request.input('p_codTaller', sql.Int, codTaller);
+
+        // Execute the stored procedure
+        await request.execute('sp_UpdateTelefonoEmpleado');
+
+        console.log('Phone number updated successfully.');
+    } catch (err) {
+        console.error('Error updating phone number:', err);
+        throw err; // Re-throw for further error handling
+    }
+}
+
+async function deleteTelefonoEmpleado(telefono: number, codTaller: number): Promise<void> {
+    const connection = await getConnection();
+    const request = connection.request();
+
+    try {
+        request.input('telefono', sql.Int, telefono);
+        request.input('p_codTaller', sql.Int, codTaller);
+
+        await request.execute('DeleteTelefonoEmpleado');
+
+        console.log('Phone number deleted successfully.');
+    } catch (err) {
+        console.error('Error deleting phone number:', err);
+        throw err;
+    }
+}
+
+async function upsertTelefonoEmpleado(
+    formData: FormData
+): Promise<void> {
+    const codEmpleado = Number(formData.get('codEmpleado'));
+    const telefono = Number(formData.get('telefono'));
+    const codTaller = Number(formData.get('codTaller')) || 1;
+
+    if (!codEmpleado || !telefono || !codTaller) {
+        throw new Error('Invalid form data');
+    }
+
+    const telefonoExists = await readTelefonoEmpleado(codEmpleado, telefono);
+
+    if (telefonoExists) {
+        const prevTelefono = telefonoExists.telefono;
+        await updateTelefonoEmpleado(codEmpleado, telefono, prevTelefono, codTaller);
+    } else {
+        await createTelefonoEmpleado(codEmpleado, telefono, codTaller);
     }
 }
